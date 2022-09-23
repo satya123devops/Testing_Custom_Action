@@ -83,7 +83,13 @@ jobs:
         uses: satya123devops/codeql_action@v1.3
         with:
           githubToken: ${{ secrets.API_TOKEN }}
+  
+  Dependabot_Scanning:
+      needs: CodeQL_result_check
+      name: Dependabot Scanning Results
+      runs-on: ubuntu-latest
           
+      steps:    
       - name: Combine Dependabot Pull Requests
         uses: satya123devops/dependabot-action@v2.1
         with:
