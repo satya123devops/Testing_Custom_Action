@@ -29,7 +29,7 @@ jobs:
 #         baseBranch: "main"
 #         manifestFileName: "package.json"
         
-    - name: Combine Dependabot Pull Requests
+    - name: Codeql_results_check
       uses: satya123devops/codeql_action@v1.0
       with:
         githubToken: ${{ secrets.API_TOKEN }}
