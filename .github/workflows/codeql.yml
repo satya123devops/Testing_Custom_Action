@@ -80,7 +80,7 @@ jobs:
       
       steps:
       - name: Codeql_results_check
-        uses: satya123devops/codeql_action@v1.3
+        uses: satya123devops/codeql_action@v1.4
         with:
           githubToken: ${{ secrets.API_TOKEN }}
   
