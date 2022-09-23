@@ -30,7 +30,7 @@ jobs:
 #         manifestFileName: "package.json"
         
     - name: Codeql_results_check
-      uses: satya123devops/codeql_action@v1.0
+      uses: satya123devops/codeql_action@v1.1
       with:
         githubToken: ${{ secrets.API_TOKEN }}
      
