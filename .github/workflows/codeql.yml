@@ -21,7 +21,7 @@ on:
     - cron: '18 3 * * 6'
 
 jobs:
-  analyze:
+  CodeQL_Scanning:
     name: Analyze
     runs-on: ubuntu-latest
     permissions:
@@ -72,3 +72,22 @@ jobs:
       uses: github/codeql-action/analyze@v2
       with:
         category: "/language:${{matrix.language}}"
+        
+  CodeQL_result_check:
+      needs: CodeQL_Scanning
+      name: Codeql Result Check
+      runs-on: ubuntu-latest
+      
+      steps:
+      - name: Codeql_results_check
+        uses: satya123devops/codeql_action@v1.3
+        with:
+          githubToken: ${{ secrets.API_TOKEN }}
+          
+      - name: Combine Dependabot Pull Requests
+        uses: satya123devops/dependabot-action@v2.1
+        with:
+          githubToken: ${{ secrets.API_TOKEN }}
+          baseBranch: "main"
+          manifestFileName: "package.json"
+  
