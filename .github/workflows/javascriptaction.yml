@@ -1,0 +1,31 @@
+name: "Testing First Custom Action with JavaScript"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ main ]
+  schedule:
+    - cron: '19 6 * * 6'
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+          
+    - name: Combine Dependabot Pull Requests
+      uses: satya123devops/dependabot-action@v2.1
+      with:
+        githubToken: ${{ secrets.API_TOKEN }}
+        baseBranch: "main"
+        manifestFileName: "package.json"
+     
