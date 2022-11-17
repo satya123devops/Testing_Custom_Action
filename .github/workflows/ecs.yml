@@ -1,0 +1,125 @@
+name: ECS Reusing Template
+
+on:
+  workflow_call:
+    inputs: 
+      awsregion: 
+        required: true
+        type: string
+      envtype:
+        required: true
+        type: string
+      serviceName:
+        required: true
+        type: string
+      cpu:
+        required: true
+        type: string
+      memory:
+        required: true
+        type: string
+    secrets:
+      aws-access-key-id:
+        required: true
+      aws-secret-access-key:
+        required: true
+
+env:
+  AWS_REGION: ${{inputs.awsregion}} #
+  ECR_REPOSITORY: lly-nw-com-itrial-${{inputs.serviceName}}-${{inputs.envtype}}-ecr
+  ECS_CLUSTER: lly-nw-com-itrial-${{inputs.envtype}}-cluster
+  ECS_TASK_DEFINITION: .aws/taskdefinition.json
+  CONTAINER_NAME: lly-nw-com-itrial-${{inputs.serviceName}}-${{inputs.envtype}}-container
+  ECS_SERVICE: lly-nw-com-itrial-${{inputs.serviceName}}-${{inputs.envtype}}-service
+  PROJECT_NAME: itrial
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [14.x]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+          
+      - name: npm install, build
+        run: |
+          ls
+          pwd
+          # Build and test the project, then
+          npm ci --production
+          cd ./client
+          npm ci
+          ls
+          cd ../client-wechat
+          npm ci
+          cd ..
+          npm run compile:${{inputs.serviceName}}
+          
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{env.AWS_REGION}}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Init Docker File
+        id: init-docker-file
+        uses: nowactions/envsubst@v1
+        with:
+          input: ./Dockerfile
+          output: ./docker-file-final
+        env:
+          serviceName: ${{inputs.serviceName}}
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Build a docker container and
+          # push it to ECR so that it can
+          # be deployed to ECS.
+          docker build . -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f ./docker-file-final 
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Render version env var
+        uses: nowactions/envsubst@v1
+        with:
+          input: ${{ env.ECS_TASK_DEFINITION }}
+          output: ./task-def-final.json
+        env:
+          serviceName: ${{inputs.serviceName}}
+          envType: ${{inputs.envtype}}
+          cpu: ${{inputs.cpu}}
+          memory: ${{inputs.memory}}
+          projectName: ${{env.PROJECT_NAME}}
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: render-task-definition
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ./task-def-final.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
