@@ -1,0 +1,90 @@
+name: Deploy Reusing Workflow
+on:
+  workflow_dispatch:
+    inputs:
+      serviceType:
+        description: "Service Type For AWS"
+        required: true
+        default: "Lambda"
+        type: choice
+        options:
+          - ECS
+      serviceName:
+        description: "Service Name For AWS"
+        required: true
+        type: choice
+        options:
+          - admin
+          - invsgr
+          - subjt
+          - token
+          - wechat
+env:
+  ENV_TYPE: d #d:dev q:qa p:prd
+  AWS_REGION: cn-northwest-1
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs: # steps.step1.outputs.result json string
+      serviceName: ${{ fromJSON(steps.step1.outputs.result).serviceName }}
+      envType: ${{ fromJSON(steps.step1.outputs.result).envtype }}
+      awsRegion: ${{ fromJSON(steps.step1.outputs.result).awsRegion }}
+      cpu: ${{ fromJSON(steps.step1.outputs.result).cpu }}
+      memory: ${{ fromJSON(steps.step1.outputs.result).memory }}
+    steps:
+      - uses: actions/github-script@v6
+        id: step1
+        name: deal with Ver
+        with:
+          script: | #nodejs16 code
+            const serviceType='${{github.event.inputs.serviceType}}';
+            const serviceName='${{github.event.inputs.serviceName}}';
+            console.log(serviceName);
+            const result= {
+              serviceName:serviceName,
+              envtype:'d', //d:dev q:qa p:prd
+              awsRegion:'cn-northwest-1',
+              cpu:0,
+              memory:0,
+            };
+            if(serviceType == 'ECS'){
+              const ecsDockerSizeSetting={
+                admin:{
+                  cpu:512,
+                  memory:1024,
+                },
+                invsgr:{
+                  cpu:512,
+                  memory:1024,
+                },
+                subjt:{
+                  cpu:512,
+                  memory:1024,
+                },
+                token:{
+                  cpu:512,
+                  memory:1024,
+                },
+                wechat:{
+                  cpu:512,
+                  memory:1024,
+                }
+              }
+              result.cpu=ecsDockerSizeSetting[serviceName].cpu;
+              result.memory=ecsDockerSizeSetting[serviceName].memory;
+            }
+            return result;
+  call-ecs-workflow:
+    if: github.event.inputs.serviceType == 'ECS'
+    uses: ./.github/workflows/ecs.yml
+    needs: prepare
+    with:
+      awsregion: ${{ needs.prepare.outputs.awsRegion }}
+      envtype: ${{ needs.prepare.outputs.envType }}
+      cpu: ${{ needs.prepare.outputs.cpu }}
+      memory: ${{ needs.prepare.outputs.memory }}
+      serviceName: ${{ needs.prepare.outputs.serviceName }}
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_DEV }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}
